@@ -6,7 +6,7 @@ import io
 import PyPDF2
 import traceback
 
-# Page settings
+# Streamlit app configuration
 st.set_page_config(
     page_title="AI Content Summarizer",
     page_icon="📝",
@@ -14,16 +14,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Load summarizer model
+# Load model in session state
 if 'summarizer' not in st.session_state:
     st.session_state.summarizer = None
 
 def load_summarizer():
     if st.session_state.summarizer is None:
-        with st.spinner("Loading AI model... This may take a moment on first use."):
+        with st.spinner("Loading AI model... This may take a moment."):
             st.session_state.summarizer = TextSummarizer()
     return st.session_state.summarizer
 
+# PDF reading
 def extract_text_from_pdf(pdf_file):
     try:
         reader = PyPDF2.PdfReader(pdf_file)
@@ -32,6 +33,7 @@ def extract_text_from_pdf(pdf_file):
         st.error(f"Error reading PDF: {str(e)}")
         return None
 
+# TXT reading
 def extract_text_from_txt(txt_file):
     try:
         return txt_file.read().decode('utf-8').strip()
@@ -39,24 +41,28 @@ def extract_text_from_txt(txt_file):
         st.error(f"Error reading text file: {str(e)}")
         return None
 
+# Main function
 def main():
     st.title("🤖 AI Content Summarizer")
-    st.markdown("### Transform long content into concise, meaningful summaries using Facebook's BART model.")
+    st.markdown("### Transform long content into concise, meaningful summaries using BART from Hugging Face")
 
     with st.sidebar:
         st.header("⚙️ Settings")
         summary_length = st.selectbox("Summary Length:", ["short", "medium", "long"], index=1)
         input_method = st.radio("Input Method:", ["Text Input", "File Upload"])
+
+        st.markdown("---")
+        st.info("Using `facebook/bart-large-cnn` for abstractive summarization.")
+
         st.markdown("### 💡 Tips")
         st.markdown("""
-        - Best for articles, papers, transcripts
-        - Min 50 characters
-        - PDF/TXT supported
+        - Ideal for articles, research papers, transcripts
+        - Works best with at least 50+ characters
+        - Upload TXT or PDF files
         """)
-        st.markdown("---")
-        st.info("Model: `facebook/bart-large-cnn`\nStreamlit + Hugging Face")
 
     col1, col2 = st.columns([3, 2])
+    summary = ""
 
     with col1:
         st.subheader("📝 Input")
@@ -65,7 +71,7 @@ def main():
         if input_method == "Text Input":
             text_to_summarize = st.text_area("Paste your content here:", height=300)
         else:
-            uploaded_file = st.file_uploader("Upload a file:", type=['pdf', 'txt'])
+            uploaded_file = st.file_uploader("Upload a file:", type=['txt', 'pdf'])
             if uploaded_file:
                 with st.spinner("Reading file..."):
                     if uploaded_file.type == "application/pdf":
@@ -103,45 +109,42 @@ def main():
                         end_time = time.time()
                         progress.empty()
 
-                        # ✅ Display summary clearly
+                        # ✅ Display Summary Text
                         st.success("✅ Summary Generated!")
                         st.markdown("### 📄 Summary:")
-                        st.markdown(f"""
-                        <div style="background-color:#f8f9fa;padding:20px;border-left:5px solid #4CAF50;border-radius:5px;">
-                        {summary}
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(summary)
 
-                        # 📊 Stats
-                        original_len = len(text_to_summarize)
-                        summary_len = len(summary)
-                        compression = round((1 - summary_len / original_len) * 100, 1)
-                        col1, col2, col3 = st.columns(3)
-                        col1.metric("Original", f"{original_len} chars")
-                        col2.metric("Summary", f"{summary_len} chars")
-                        col3.metric("Compression", f"{compression}%")
-                        st.caption(f"⏱️ Processed in {end_time - start_time:.2f} sec")
+                        # 📊 Show stats
+                        col_a, col_b, col_c = st.columns(3)
+                        col_a.metric("Original Length", f"{len(text_to_summarize)} chars")
+                        col_b.metric("Summary Length", f"{len(summary)} chars")
+                        compression = round((1 - len(summary)/len(text_to_summarize)) * 100, 1)
+                        col_c.metric("Compression", f"{compression}%")
+                        st.caption(f"⏱️ Processed in {end_time - start_time:.2f} seconds")
 
-                        # ✅ Optional Download Checkbox
-                        st.markdown("---")
-                        st.markdown("### 📥 Want to keep this?")
-                        if st.checkbox("✅ I'm happy with the summary. Show download button."):
-                            st.download_button("📥 Download Summary", summary, file_name="summary.txt", mime="text/plain")
+                        # ✅ Download Button UNDER summary
+                        st.markdown("### 📥 Download Summary")
+                        st.download_button(
+                            label="Download Summary as TXT",
+                            data=summary,
+                            file_name="summary.txt",
+                            mime="text/plain"
+                        )
 
                 except Exception as e:
-                    st.error("❌ Error during summarization.")
-                    with st.expander("Debug Info"):
+                    st.error("❌ An error occurred.")
+                    with st.expander("Error Details"):
                         st.code(traceback.format_exc())
 
         else:
             with summary_container:
-                st.info("👆 Paste/upload your content and click 'Generate Summary'.")
+                st.info("👆 Paste or upload text and click 'Generate Summary'.")
 
     st.markdown("---")
     st.markdown("""
-    <div style='text-align: center; color: #888;'>
-        Built with ❤️ using Streamlit & Hugging Face<br>
-        <a href='https://streamlit.io/cloud' target='_blank'>Deploy it yourself</a>
+    <div style='text-align: center; color: gray;'>
+        Built with ❤️ using Streamlit + Hugging Face<br>
+        <a href='https://streamlit.io/cloud' target='_blank'>Deploy it free</a>
     </div>
     """, unsafe_allow_html=True)
 
